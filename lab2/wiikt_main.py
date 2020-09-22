@@ -14,7 +14,7 @@ from linuxWiimoteLib import *
 running = True
 
 class Wii_Control(threading.Thread):
-    def __init__(self, freq = 0.1):
+    def __init__(self, freq = 10):
         threading.Thread.__init__(self)
         # set polling frequency
         self.freq = freq
@@ -46,9 +46,12 @@ class Wii_Control(threading.Thread):
             if (wiistate.ButtonState.Home):
                 print("re-calibrating")
                 self.wiimote.calibrateAccelerometer()
-                sleep(self.freq)          
+                sleep(1/self.freq)
         exit(self.wiimote)
 
+def stop():
+    global running
+    running = False
 
 def signal_handler(sig, frame):
     global running
