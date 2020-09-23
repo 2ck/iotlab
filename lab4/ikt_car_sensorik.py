@@ -11,6 +11,9 @@ GPIO.setmode(GPIO.BCM)
 # 1 indicates /dev/i2c-1 (port I2C1)
 bus = smbus.SMBus(1)
 
+
+POLLING_FREQ = 10 # Hz
+
 #################################################################################
 # Sensors
 #################################################################################
@@ -68,6 +71,7 @@ class UltrasonicThread(threading.Thread):
         threading.Thread.__init__(self)
 
         self.ultrasonic = Ultrasonic(address)
+        self.setDaemon(True)
         self.start()
 
     # Aufgabe 4
@@ -174,6 +178,8 @@ class InfraredThread(threading.Thread):
     def __init__(self, address, encoder=None):
         threading.Thread.__init__(self)
         self.infrared = Infrared(address)
+        self.setDaemon(True)
+        self.start()
 
     def run(self):
         while not self.stopped:
@@ -247,6 +253,8 @@ class EncoderThread(threading.Thread):
     def __init__(self, encoder):
         threading.Thread.__init__(self)
         self.encoder = encoder
+        self.setDaemon(True)
+        self.start()
 
 
     def run(self):
@@ -257,10 +265,10 @@ class EncoderThread(threading.Thread):
     #
     # Diese Methode soll die aktuelle Geschwindigkeit sowie die zurueckgelegte Distanz aktuell halten.
     def get_values(self):
+        global POLLING_FREQ
         distance_new = self.encoder.get_travelled_dist()
         # TODO
-        polling_freq = 10 # Hz
-        speed = (distance_new - distance) * polling_freq
+        speed = (distance_new - distance) * POLLING_FREQ
 
 
     def stop(self):
@@ -292,3 +300,22 @@ if __name__ == "__main__":
     # Aufgabe 6
     #
     # Hier sollen saemtlichen Messwerte periodisch auf der Konsole ausgegeben werden.
+
+    # threads start automatically in init
+    u_t1 = UltrasonicThread(ultrasonic_front_i2c_address)
+    u_t2 = UltrasonicThread(ultrasonic_rear_i2c_address)
+    i_t = InfraredThread(infrared_i2c_address)
+    c_t = CompassThread(compass_i2c_address)
+
+    enc = Encoder(encoder_pin)
+    e_t = EncoderThread(enc)
+
+    while True:
+        print("encoder distance" e_t.distance,
+              "encoder speed", e_t.speed,
+              "compass bearing", c_t.bearing,
+              "distance (front, back, side)", "(", u_t1.distance, u_t2.distance, i_t.distance, ")",
+              "front brightness", u_t1.brightness,
+              "parking space length", i_t.parking_space_length,
+              sep = " | ")
+        sleep(1 / POLLING_FREQ)
