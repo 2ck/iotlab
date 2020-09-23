@@ -8,6 +8,8 @@ import pygame
 import math
 import enum
 
+import numpy as np
+
 import servo_ctrl
 
 import wiikt_main
@@ -29,7 +31,7 @@ speed_max = 11
 angle_max = 45
 
 # filter and amplifier properties
-w = 0.04            # 0 < w <= 1
+w = 0.3            # 0 < w <= 1
 alpha = 0.5
 n = 1
 
@@ -238,10 +240,27 @@ def sgn_helper(x):
 def get_ang_wii():
     global angle_max
     global wii_control
+    global pygame
     x,y,z = wii_control.wiimote.getAccelState()
+
+    vector1 = [1,0,0]
+    vector2 = [x,y,z]
+    unit_vector1 = vector1 / np.linalg.norm(vector1)
+    unit_vector2 = vector2 / np.linalg.norm(vector2)
+
+    dot_product = np.dot(unit_vector1, unit_vector2)
+
+    angle = np.arccos(dot_product) #angle in radian
+    if (y > 0):
+        angle = angle - math.pi/2
+        angle = -angle
+    elif (y < 0):
+        angle = angle - math.pi/2
+
     #r = math.sqrt(x ** 2 + y ** 2)
     phi = 0
-    thr_xy = 15
+    thr_xy = 20
+    """
     # check if we're outside of the control deadzone
     if (abs(x) > thr_xy or abs(y) > thr_xy):
         if (x != 0):
@@ -249,10 +268,13 @@ def get_ang_wii():
             phi = math.atan(y / x) + math.pi * sgn_helper(-x) * math.copysign(1, y)
         else:
             phi = math.copysign(math.pi / 2, y) + math.pi * sgn_helper(-x) * math.copysign(1, y)
+    """
+    if (abs(x) > thr_xy or abs(y) > thr_xy):
+        phi = angle
     # convert from rad to deg
     phi *= 180 / math.pi
-    # convert from (what should be) [-180, 180] to [-45, 45]
-    ang = phi * 45 / 180
+    # convert from (what should be) [-90, 90] to [-45, 45]
+    ang = phi * 45 / 40
     if ang >= 0:
         return min(ang, angle_max)
     else:
@@ -365,7 +387,11 @@ try:
             wiimote_leds(speed_cur)
 
             # low_pass(current, last)
-            angle_cur = low_pass(get_ang_wii(), angle_cur)
+            angle_new = low_pass(get_ang_wii(), angle_cur)
+            # lower thr to prevent going from -45 -> 45
+            thr = 70
+            if (abs(angle_new) - abs(angle_cur) < thr):
+                angle_cur = angle_new
             # overwriting angle_cur with the amplified value would lead to overflows
             steering.set_angle(amplify(angle_cur))
 
@@ -375,12 +401,10 @@ try:
             if wms.ButtonState.B:
                 # TODO will this get rapidly toggled if the B button is held?
                 # if so, use the version below
-                keystates['motoron'] = not keystates['motoron']
-                """
+                #keystates['motoron'] = not keystates['motoron']
                 keystates['motoron'] = True
             else:
                 keystates['motoron'] = False
-                """
 
 
 
