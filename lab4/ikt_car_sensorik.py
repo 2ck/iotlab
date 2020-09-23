@@ -4,6 +4,7 @@ from time import time, sleep
 import threading
 import RPi.GPIO as GPIO
 import smbus
+import math
 
 GPIO.setmode(GPIO.BCM)
 
@@ -28,19 +29,25 @@ class Ultrasonic():
     #
     # Diese Methode soll ein Datenbyte an den Ultraschallsensor senden um eine Messung zu starten
     def write(self,value):
-        return 0
+        global bus
+        bus.write_byte_data(self.address, 0x00, 0x51)
 
     # Aufgabe 2
     #
     # Diese Methode soll den Lichtwert auslesen und zurueckgeben.
     def get_brightness(self):
-        return 0
+        global bus
+        return bus.read_byte_data(self.address, 0x01)
 
     # Aufgabe 2
     #
     # Diese Methode soll die Entfernung auslesen und zurueckgeben. 
     def get_distance(self):
-        return 0
+        global bus
+        hi_b = bus.read_byte_data(self.address, 0x02)
+        lo_b = bus.read_byte_data(self.address, 0x03)
+        print("ultrasonic", hi_b, lo_b)
+        return int.from_bytes(bytes([hi_b, lo_b]), byteorder="big")
 
     def get_address(self):
         return self.address
@@ -84,7 +91,11 @@ class Compass(object):
     #
     # Diese Methode soll den Kompasswert auslesen und zurueckgeben. 
     def get_bearing(self):
-        return 0
+        global bus
+        hi_b = bus.read_byte_data(self.address, 2)
+        lo_b = bus.read_byte_data(self.address, 3)
+        print("compass", hi_b, lo_b)
+        return int.from_bytes(bytes([hi_b, lo_b]), byteorder="big") / 10
 
 class CompassThread(threading.Thread):
     ''' Thread-class for holding compass data '''
@@ -122,13 +133,16 @@ class Infrared(object):
     #
     # In dieser Methode soll der gemessene Spannungswert des Infrarotsensors ausgelesen werden.
     def get_voltage(self):
-        return 0
+        global bus
+        return bus.read_byte(self.address)
 
     # Aufgabe 3
     #
     # Der Spannungswert soll in einen Distanzwert umgerechnet werden.
     def get_distance(self):
-        return 0
+        # V = 1 / ( 1/dist + 0.42)   -->   dist = 1/(1/V - 0.42)
+        V = self.get_voltage()
+        return (1 / (1/V - 0.42))
 
 
 class InfraredThread(threading.Thread):
@@ -175,25 +189,32 @@ class Encoder(object):
 
     # Aufgabe 2
     #
+    # TODO
+    D = 10
     # Wieviel cm betraegt ein einzelner Encoder-Schritt?
-    STEP_LENGTH = 0 # in cm
+    STEP_LENGTH = math.pi * D / 16 # in cm
 
     # number of encoder steps
     count = 0
 
     def __init__(self, pin):
         self.pin = pin
+        GPIO.setup(self.pin, GPIO.IN)
+        GPIO.add_event_detect(self.pin, GPIO.BOTH, callback=self.count, bouncetime=1)
 
     # Aufgabe 2
     #
     # Jeder Flankenwechsel muss zur Berechnung der Entfernung gezaehlt werden. 
     # Definieren Sie alle dazu noetigen Methoden.
 
+    def count(channel):
+        count += 1
+
     # Aufgabe 2
     # 
     # Diese Methode soll die gesamte zurueckgelegte Distanz zurueckgeben.
     def get_travelled_dist(self):
-        return 0
+        return count * STEP_LENGTH
 
 class EncoderThread(threading.Thread):
     ''' Thread-class for holding speed and distance data of all encoders'''
