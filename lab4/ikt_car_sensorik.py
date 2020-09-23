@@ -238,14 +238,14 @@ if __name__ == "__main__":
 	# Tragen Sie die i2c Adressen der Sensoren hier ein
 
 	# The i2c addresses of front and rear ultrasound sensors
-	ultrasonic_front_i2c_address = 0x00;
-	ultrasonic_rear_i2c_address = 0x00;
+	ultrasonic_front_i2c_address = 0x70;
+	ultrasonic_rear_i2c_address = 0x71;
 
 	# The i2c address of the compass sensor
-	compass_i2c_address = 0x00 
+	compass_i2c_address = 0x60
 
 	# The i2c address of the infrared sensor
-	infrared_i2c_address = 0x00
+	infrared_i2c_address = 0x4f
 
 	# Aufgabe 6
 	#
