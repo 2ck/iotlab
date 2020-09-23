@@ -30,7 +30,7 @@ class Ultrasonic():
     # Diese Methode soll ein Datenbyte an den Ultraschallsensor senden um eine Messung zu starten
     def write(self,value):
         global bus
-        bus.write_byte_data(self.address, 0x00, 0x51)
+        bus.write_byte_data(self.address, 0x00, value)
 
     # Aufgabe 2
     #
@@ -65,14 +65,23 @@ class UltrasonicThread(threading.Thread):
     #
     # Hier muss der Thread initialisiert werden.
     def __init__(self, address):
-        return 0
+        threading.Thread.__init__(self)
+
+        self.ultrasonic = Ultrasonic(address)
+        self.start()
 
     # Aufgabe 4
     #
     # Schreiben Sie die Messwerte in die lokalen Variablen
     def run(self):
         while not self.stopped:
-            continue
+            # measure in cm
+            self.ultrasonic.write(0x51)
+            # measurement takes 65ms max
+            sleep(0.065)
+
+            distance = self.ultrasonic.get_distance()
+            brightness = self.ultrasonic.get_brightness()
             
     def stop(self):
         self.stopped = True
@@ -107,14 +116,17 @@ class CompassThread(threading.Thread):
     #
     # Hier muss der Thread initialisiert werden.
     def __init__(self, address):
-        return 0
+        threading.Thread.__init__(self)
+
+        self.compass = Compass(address)
+        self.start()
 
     # Aufgabe 4
     #
     # Diese Methode soll den Kompasswert aktuell halten.
     def run(self):
         while not self.stopped:
-            continue
+            bearing = self.compass.get_bearing()
 
     def stop(self):
         self.stopped = True
@@ -127,14 +139,16 @@ class Infrared(object):
     '''This class is responsible for handling i2c requests to an infrared sensor'''
 
     def __init__(self,address):
+        global bus
         self.address = address
+        bus.write_byte(address, 0x00)
         
     # Aufgabe 2 
     #
     # In dieser Methode soll der gemessene Spannungswert des Infrarotsensors ausgelesen werden.
     def get_voltage(self):
         global bus
-        return bus.read_byte(self.address)
+        return bus.read_byte_data(self.address, 0x00)
 
     # Aufgabe 3
     #
@@ -158,7 +172,8 @@ class InfraredThread(threading.Thread):
     #
     # Hier muss der Thread initialisiert werden.
     def __init__(self, address, encoder=None):
-        return 0
+        threading.Thread.__init__(self)
+        self.infrared = Infrared(address)
 
     def run(self):
         while not self.stopped:
@@ -169,7 +184,7 @@ class InfraredThread(threading.Thread):
     #
     # Diese Methode soll den Infrarotwert aktuell halten
     def read_infrared_value(self):  
-        return 0
+        return self.infrared.get_distance()
 
     # Aufgabe 5
     #
@@ -228,8 +243,11 @@ class EncoderThread(threading.Thread):
     # Aufgabe 4
     #
     # Hier muss der Thread initialisiert werden.
+    # TODO do we really want to call init with the encoder class already created?
     def __init__(self, encoder):
-        return 0
+        threading.Thread.__init__(self)
+        self.encoder = encoder
+
 
     def run(self):
         while not self.stopped:
@@ -239,7 +257,10 @@ class EncoderThread(threading.Thread):
     #
     # Diese Methode soll die aktuelle Geschwindigkeit sowie die zurueckgelegte Distanz aktuell halten.
     def get_values(self):
-        return 0
+        distance_new = self.encoder.get_travelled_dist()
+        # TODO
+        polling_freq = 10 # Hz
+        speed = (distance_new - distance) * polling_freq
 
 
     def stop(self):
