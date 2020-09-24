@@ -32,36 +32,42 @@
 
 	<!--Aufgabe 4-->
 	<!--Für jeden Datensatz muss eine Zeichenfläche 'canvas' definiert werden-->
+    UltraSound Right:<br>
+    <canvas class="canvas" id="range_rChart" width="200" height="100">
+    </canvas><br>
+
+    <script type="text/javascript">
+        var dataSocket = new WebSocket("ws://172.23.90.34:8081/ws");
+
+        dataSocket.onopen = function() {
+            console.log("connected");
+            dataSocket.send("connection established");
+        };
+
+        dataSocket.onmessage = function(evt) {
+            console.log(evt.data);
+            dataSocket.send("Message received!");
+            var msg = JSON.parse(evt.data);
+            console.log(msg)
+            range_r.append(new Date().getTime(), parseFloat(msg.range_r));
+        }
+
+        // SmoothieChart
+        var range_rChart = new SmoothieChart({minValue: 0, maxValue: 300,
+                grid: {strokeStyle: "rgb(125,0,0)", fillStyle: "rgb(60,0,0)",
+                       lineWidth: 1, millisPerLine: 250, verticalSections:6}
+                });
+
+        var range_r = new TimeSeries();
+        range_rChart.addTimeSeries(range_r);
+        range_rChart.streamTo(document.getElementById("range_rChart"), 100);
+    </script>
+
+
 
 
 	<!--Einparken -->
 	<!--Es müssen Knöpfe zum Starten und Stoppen des Parkvorgangs definiert werden-->
-	
-	<script type="text/javascript">
-		// Aufgabe 4
-		//
-		// Damit die Daten dargestellt werden können muss ein Websocket geöffnet werden, der bei jeder neuen Nachricht die Daten aus dieser Nachricht rausholt und visualisiert.
-		var dataSocket = ;
-
-
-		dataSocket.onopen = function(){  
-        		console.log("connected"); 
-      		}; 
-
-		dataSocket.onmessage = function(evt) {
-			// Aufgabe 4
-			// Die empfangenen Daten müssen an die Charts weitergegeben werden.
-		};
-
-		dataSocket.onclose = function(evt) {
-			console.log("disconnected"); 
-		};
-		
-
-		// Aufgabe 4
-		//
-		// Für jeden Datensatz muss ein eine SmoothieChart in einem vorher definierten canvas-Element erstellt werden.
-	</script>
 
   </body>
 </html>

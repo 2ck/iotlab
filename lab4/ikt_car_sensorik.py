@@ -26,6 +26,7 @@ class Ultrasonic():
     '''This class is responsible for handling i2c requests to an ultrasonic sensor'''
 
     def __init__(self,address):
+        print("init ultrasonic with addr", address)
         self.address = address
     
     # Aufgabe 2
@@ -33,6 +34,7 @@ class Ultrasonic():
     # Diese Methode soll ein Datenbyte an den Ultraschallsensor senden um eine Messung zu starten
     def write(self,value):
         global bus
+        print("wrote starting value to ultrasonic sensor")
         bus.write_byte_data(self.address, 0x00, value)
 
     # Aufgabe 2
@@ -40,6 +42,7 @@ class Ultrasonic():
     # Diese Methode soll den Lichtwert auslesen und zurueckgeben.
     def get_brightness(self):
         global bus
+        print("reading ultrasonic brightness")
         return bus.read_byte_data(self.address, 0x01)
 
     # Aufgabe 2
@@ -69,6 +72,8 @@ class UltrasonicThread(threading.Thread):
     # Hier muss der Thread initialisiert werden.
     def __init__(self, address):
         threading.Thread.__init__(self)
+
+        self.stopped = False
 
         self.ultrasonic = Ultrasonic(address)
         self.setDaemon(True)
@@ -107,7 +112,6 @@ class Compass(object):
         global bus
         hi_b = bus.read_byte_data(self.address, 2)
         lo_b = bus.read_byte_data(self.address, 3)
-        print("compass", hi_b, lo_b)
         return int.from_bytes(bytes([hi_b, lo_b]), byteorder="big") / 10
 
 class CompassThread(threading.Thread):
@@ -121,6 +125,8 @@ class CompassThread(threading.Thread):
     # Hier muss der Thread initialisiert werden.
     def __init__(self, address):
         threading.Thread.__init__(self)
+
+        self.stopped = False
 
         self.compass = Compass(address)
         self.start()
@@ -177,6 +183,9 @@ class InfraredThread(threading.Thread):
     # Hier muss der Thread initialisiert werden.
     def __init__(self, address, encoder=None):
         threading.Thread.__init__(self)
+
+        self.stopped = False
+
         self.encoder = encoder
         self.infrared = Infrared(address)
         self.setDaemon(True)
@@ -184,8 +193,8 @@ class InfraredThread(threading.Thread):
 
     def run(self):
         while not self.stopped:
-            read_infrared_value()
-            calculate_parking_space_length()
+            self.read_infrared_value()
+            self.calculate_parking_space_length()
 
     # Aufgabe 4
     #
@@ -266,6 +275,9 @@ class EncoderThread(threading.Thread):
     # TODO do we really want to call init with the encoder class already created?
     def __init__(self, encoder):
         threading.Thread.__init__(self)
+
+        self.stopped = False
+
         self.encoder = encoder
         self.setDaemon(True)
         self.start()
@@ -325,11 +337,13 @@ if __name__ == "__main__":
     e_t = EncoderThread(enc)
 
     while True:
-        print("encoder distance" e_t.distance,
+        """
+        print("encoder distance", e_t.distance,
               "encoder speed", e_t.speed,
               "compass bearing", c_t.bearing,
               "distance (front, back, side)", "(", u_t1.distance, u_t2.distance, i_t.distance, ")",
               "front brightness", u_t1.brightness,
               "parking space length", i_t.parking_space_length,
-              sep = " | ")
+              )
+        """
         sleep(1 / POLLING_FREQ)

@@ -9,7 +9,7 @@ import json
 
 import threading
 from ikt_car_sensorik import *
-import _servo_ctrl
+import servo_ctrl
 from math import acos, sqrt, degrees
 
 
@@ -17,78 +17,127 @@ from math import acos, sqrt, degrees
 # Aufgabe 4
 #
 # Der Tornado Webserver soll die Datei index.html am Port 8081 zur Verfügung stellen
+from tornado.options import define, options
+define("port", default=8081, help="run on the given port", type=int)
+
+class IndexHandler(tornado.web.RequestHandler):
+    @tornado.web.asynchronous
+    def get(self):
+        self.render("index.html")
 
 # Aufgabe 3
 #
 # Der Tornado Webserver muss eine Liste der clients verwalten.  
 class WebSocketHandler(tornado.websocket.WebSocketHandler):
-	'''Definition der Operationen des WebSocket Servers'''
+    '''Definition der Operationen des WebSocket Servers'''
 
-	print "hello WebSocketHandler"
+    print("hello WebSocketHandler")
 
-	def open(self):
-		return 0
+    def open(self):
+        print("new connection:", self.request.remote_ip)
+        clients.append(self)
 
-	def on_message(self, message):
-		return 0
+    def on_message(self, message):
+        print("message received:", message)
+        json_message = {}
+        json_message["response"] = message
+        json_message = json.dumps(json_message)
+        self.write_message(json_message)
 
-	def on_close(self):
-		return 0
+    def on_close(self):
+        print("connection closed")
+        clients.remove(self)
 
 
 class DataThread(threading.Thread):
-	'''Thread zum Senden der Zustandsdaten an alle Clients aus der Client-Liste'''
+    '''Thread zum Senden der Zustandsdaten an alle Clients aus der Client-Liste'''
 
-	# Aufgabe 3
-	#
-	# Hier muss der Thread initialisiert werden.
-	def __init__(self):
-		return 0
-	
-	# Aufgabe 3
-	#
-	# Erstellen Sie hier Instanzen von Klassen aus dem ersten Teilversuch		
-	def set_sensorik(self, address_ultrasonic_front, address_ultrasonic_back, address_compass, address_infrared, encoder_pin):
-		return 0
+    # Aufgabe 3
+    #
+    # Hier muss der Thread initialisiert werden.
+    def __init__(self):
+        threading.Thread.__init__(self)
 
-	# Aufgabe 3
-	#
-	# Hier muessen die Sensorwerte ausgelesen und an alle Clients des Webservers verschickt werden.
-	def run(self):
-		while not self.stopped:
-			continue
+        address_ultrasonic_front = 0x70
+        address_ultrasonic_back = 0x71 
+        address_compass = 0x60
+        address_infrared = 0x4
+        encoder_pin = 23
+        self.set_sensorik(address_ultrasonic_front, address_ultrasonic_back, address_compass, address_infrared, encoder_pin)
+    
+    # Aufgabe 3
+    #
+    # Erstellen Sie hier Instanzen von Klassen aus dem ersten Teilversuch       
+    def set_sensorik(self, address_ultrasonic_front, address_ultrasonic_back, address_compass, address_infrared, encoder_pin):
+        enc = Encoder(encoder_pin)
 
-	def stop(self):
-		self.stopped = True
+        self.u_t1 = UltrasonicThread(address_ultrasonic_front)
+        self.u_t2 = UltrasonicThread(address_ultrasonic_back)
+        self.c_t = CompassThread(address_compass)
+        self.i_t = InfraredThread(address_infrared, enc)
+        self.e_t = EncoderThread(enc)
+
+    # Aufgabe 3
+    #
+    # Hier muessen die Sensorwerte ausgelesen und an alle Clients des Webservers verschickt werden.
+    def run(self):
+        while not self.stopped:
+            json_message = {
+                "us brightness":self.u_t1.brightness,
+                "front distance":self.u_t1.distance,
+                "rear distance":self.u_t2.distance,
+                "compass":self.c_t.bearing,
+                "side distance":self.i_t.distance,
+                "parking space length":self.i_t.parking_space_length,
+                "driven distance":self.e_t.distance,
+                "speed":self.e_t.speed
+                }
+            for c in clients:
+                c.write_message(json_message)
+
+
+    def stop(self):
+        self.stopped = True
 
 class DrivingThread(threading.Thread):
-	'''Thread zum Fahren des Autos'''
+    '''Thread zum Fahren des Autos'''
 
-	# Einparken
-	#
-	# Hier muss der Thread initialisiert werden.
-	def __init__(self):
-		return 0
-		
-	# Einparken
-	#
-	# Definieren Sie einen Thread, der auf die ueber den Webserver erhaltenen Befehle reagiert und den Einparkprozess durchfuehrt
-	def run(self):
-		while not self.stopped:
-			continue
+    # Einparken
+    #
+    # Hier muss der Thread initialisiert werden.
+    def __init__(self):
+        return 0
+        
+    # Einparken
+    #
+    # Definieren Sie einen Thread, der auf die ueber den Webserver erhaltenen Befehle reagiert und den Einparkprozess durchfuehrt
+    def run(self):
+        while not self.stopped:
+            continue
 
-	def stop(self):
-		self.stopped = True
-		
+    def stop(self):
+        self.stopped = True
+        
 
 if __name__ == "__main__":
-	print "Main Thread started"
-	# Aufgabe 3
-	#
-	# Erstellen und starten Sie hier eine Instanz des DataThread und starten Sie den Webserver .
+    print("Main Thread started")
+    clients = []
+    tornado.options.parse_command_line()
+    app = tornado.web.Application(handlers=[
+            (r"/ws", WebSocketHandler),
+            (r"/", IndexHandler),
+            (r"/(.*)", tornado.web.StaticFileHandler, {"path": os.path.dirname(__file__)}),
+            ])
+    httpServer = tornado.httpserver.HTTPServer(app)
+    httpServer.listen(options.port)
+    print("Listening on port:", options.port)
+    tornado.ioloop.IOLoop.instance().start()
+    # Aufgabe 3
+    #
+    # Erstellen und starten Sie hier eine Instanz des DataThread und starten Sie den Webserver .
 
 
-	# Einparken
-	#
-	# Erstellen und starten Sie hier eine Instanz des DrivingThread, um das Einparken zu ermoeglichen.
+    # Einparken
+    #
+    # Erstellen und starten Sie hier eine Instanz des DrivingThread, um das Einparken zu ermoeglichen.
 
