@@ -1,5 +1,6 @@
-f = open("sequence_numbers_piwlanudp.log", "r")
-out = open("sequence_numbers_piwlanudp_modified.log", "w")
+fn = raw_input("file to modify: ")
+f = open(fn, "r")
+out = open(fn + "modified", "w")
 
 lines = f.readlines()
 f.close()
