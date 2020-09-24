@@ -1,10 +1,10 @@
 #!/bin/bash
 
-sudo tcpdump -n -i wlp4s0 udp -w report_wlan.pcap &
+tcpdump -n -i wlp4s0 udp -w $1 &
 
 python server.py -t UDP &
 
 sleep 90
 
-sudo killall tcpdump
+killall tcpdump
 killall python

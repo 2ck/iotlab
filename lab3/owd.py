@@ -1,6 +1,6 @@
 from decimal import *
 
-USE_IP_ID = True
+USE_IP_ID = False
 
 BUFFER_SIZE = 1400
 
@@ -29,8 +29,8 @@ def abschaetzung_owd(data1, data2):
             abs(abs(Decimal(time1)) - abs(Decimal(time2)))
         return sume / Decimal(len(data_line2))
 
-f1 = open("ipid_sequence_numbers_wlanudp.log", "r")
-f2 = open("ipid_sequence_numbers_wlan_piudp.log", "r")
+f1 = open("sequence_numbers_34b_TCP.log", "r")
+f2 = open("sequence_numbers_34b_pi_TCP.log", "r")
 
 lines1 = f1.readlines()
 f1.close()
@@ -45,13 +45,12 @@ for line in lines2:
     split = line.split(" ")
     time = split[0]
     num = split[1]
-    # todo only do if startswith 0x
     if USE_IP_ID:
         num = int(num[0:len(num)-1], 16)
     else:
         num = num[0:len(num)-1]
     packet_dict[num] = Decimal(time)
-    #print(num, Decimal(time))
+    print(num, Decimal(time))
 
 
 delay_dict = {}
@@ -67,7 +66,7 @@ for line in lines1:
         num = num[0:len(num)-1]
     if num in packet_dict.keys():
         delay_dict[num] = abs(packet_dict[num] - Decimal(time))
-        #print(num, delay_dict[num])
+        print(num, delay_dict[num])
 
     """
     delay_dict:

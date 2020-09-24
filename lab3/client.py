@@ -24,7 +24,7 @@ if args.type == "UDP":
 IP = '192.168.1.118'
 PORT = 8080
 
-BUFFER_SIZE = 1400
+BUFFER_SIZE = 4000
 
 #unterstuetze Addresstypen (IPv4, IPv6, lokalen Adressen)
 address_familes = (socket.AF_INET, socket.AF_INET6, socket.AF_UNIX)
