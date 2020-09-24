@@ -11,6 +11,6 @@ set ylabel "packets"
 set output "plot.png"
 set datafile separator ' '
 
-plot "$1" using 1:2 with lines title "laptop", \
-"$2" using 1:2 with lines title "pi"
+plot "$1" using 1:2 with lines title "pi", \
+"$2" using 1:2 with lines title "laptop"
 EOF
