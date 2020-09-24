@@ -12,7 +12,7 @@ GPIO.setmode(GPIO.BCM)
 bus = smbus.SMBus(1)
 
 
-POLLING_FREQ = 10 # Hz
+POLLING_FREQ = 50 # Hz
 
 #################################################################################
 # Sensors
@@ -177,6 +177,7 @@ class InfraredThread(threading.Thread):
     # Hier muss der Thread initialisiert werden.
     def __init__(self, address, encoder=None):
         threading.Thread.__init__(self)
+        self.encoder = encoder
         self.infrared = Infrared(address)
         self.setDaemon(True)
         self.start()
@@ -196,7 +197,20 @@ class InfraredThread(threading.Thread):
     #
     # Hier soll die Berechnung der Laenge der Parkluecke definiert werden
     def calculate_parking_space_length(self):
-        parking_space_length = 0
+        THR_DISTANCE = 20 #cm
+        # obstacle on the right, IR distance < THR_DISTANCE
+        # (drive forward) wait until IR distance >= THR_DISTANCE
+        while (distance < THR_DISTANCE):
+            sleep(1 / POLLING_FREQ)
+        # obstacle ended, save current position
+        gap_start_absolute = self.encoder.get_travelled_dist()
+        # (drive forward) wait until IR distance < THR_DISTANCE
+        while (distance > THR_DISTANCE):
+            sleep(1 / POLLING_FREQ)
+        # end of gap reached
+        gap_end_absolute = self.encoder.get_travelled_dist()
+        # subtract gap start position from end position
+        parking_space_length = gap_end_absolute - gap_start_absolute
 
     def stop(self):
         self.stopped = True
@@ -301,13 +315,13 @@ if __name__ == "__main__":
     #
     # Hier sollen saemtlichen Messwerte periodisch auf der Konsole ausgegeben werden.
 
+    enc = Encoder(encoder_pin)
     # threads start automatically in init
     u_t1 = UltrasonicThread(ultrasonic_front_i2c_address)
     u_t2 = UltrasonicThread(ultrasonic_rear_i2c_address)
-    i_t = InfraredThread(infrared_i2c_address)
+    i_t = InfraredThread(infrared_i2c_address, enc)
     c_t = CompassThread(compass_i2c_address)
 
-    enc = Encoder(encoder_pin)
     e_t = EncoderThread(enc)
 
     while True:
