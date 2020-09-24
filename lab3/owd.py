@@ -2,6 +2,29 @@ from decimal import *
 
 getcontext().prec = 10
 
+
+def abschaetzung_owd(data1, data2):
+    f1 = open(data1, "r")
+    f2 = open(data2, "r")
+    data_line1 = f1.readlines()
+    data_line2 = f2.readlines()
+    f1.close()
+    f2.close()
+    if len(data_line1) < len(data_line2):
+        sume= Decimal(0)
+        for i in range(len(data_line1)):
+            time1, _ = data_line1[i].split(" ")
+            time2, _ = data_line2[-i].split(" ")
+            sume += abs(abs(Decimal(time1)) - abs(Decimal(time2)))
+        return sume / Decimal(len(data_line1))
+    else:
+        sume = Decimal(0)
+        for i in range(len(data_line2)):
+            time1, _ = data_line2[i].split(" ")
+            time2, _ = data_line1[-i].split(" ")
+            abs(abs(Decimal(time1)) - abs(Decimal(time2)))
+        return sume / Decimal(len(data_line2))
+
 f1 = open("sequence_numbers_udpwlan_modified.log", "r")
 f2 = open("sequence_numbers_piwlanudp_modified.log", "r")
 
