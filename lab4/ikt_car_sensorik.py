@@ -190,13 +190,13 @@ class InfraredThread(threading.Thread):
     #
     # Diese Methode soll den Infrarotwert aktuell halten
     def read_infrared_value(self):  
-        return self.infrared.get_distance()
+        distance = self.infrared.get_distance()
 
     # Aufgabe 5
     #
     # Hier soll die Berechnung der Laenge der Parkluecke definiert werden
     def calculate_parking_space_length(self):
-        return 0
+        parking_space_length = 0
 
     def stop(self):
         self.stopped = True
@@ -211,7 +211,7 @@ class Encoder(object):
     # Aufgabe 2
     #
     # TODO
-    D = 10
+    D = 7
     # Wieviel cm betraegt ein einzelner Encoder-Schritt?
     STEP_LENGTH = math.pi * D / 16 # in cm
 
@@ -267,8 +267,8 @@ class EncoderThread(threading.Thread):
     def get_values(self):
         global POLLING_FREQ
         distance_new = self.encoder.get_travelled_dist()
-        # TODO
         speed = (distance_new - distance) * POLLING_FREQ
+        distance = distance_new
 
 
     def stop(self):
