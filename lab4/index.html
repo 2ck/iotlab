@@ -14,6 +14,10 @@
         zoom: 100%;
         
       }
+      .canvas {
+          width: 300px;
+          height: 150px;
+      }
       p {
         color:white;
         max-width: 50%;
@@ -34,31 +38,49 @@
     <!--Für jeden Datensatz muss eine Zeichenfläche 'canvas' definiert werden-->
     <div class="container">
       <div class="row">
+
         <div class="col">
-          <p> Geschwindigkeit des Modellautos: </p>
-          <canvas class="canvas" id="speedChart" width="200" height="100">
+          <p> Abstand zum Hindernis (vorne): </p>
+          <canvas class="canvas" id="front_distanceChart">
           </canvas>
         </div>
 
         <div class="col">
-          <p> HimmelRichtung: </p>
-          <canvas class="canvas" id="himmelChart" width="200" height="100">
+          <p> Himmelsrichtung: </p>
+          <canvas class="canvas" id="bearingChart">
           </canvas>
         </div>
       </div>
 
       <div class="row">
         <div class="col">
-          <p> Abstand zum Hindernis: </p>
-          <canvas class="canvas" id="abstandChart" width="200" height="100">
+          <p> Abstand zum Hindernis (hinten): </p>
+          <canvas class="canvas" id="rear_distanceChart">
           </canvas>
         </div>
 
         <div class="col">
-          <p> Länge der Parklücke: </p>
-          <canvas class="canvas" id="laengeChart" width="200" height="100">
+          <p> Geschwindigkeit des Modellautos: </p>
+          <canvas class="canvas" id="speedChart">
           </canvas>
         </div>
+      </div>
+
+      <div class="row">
+        <div class="col">
+          <p> Abstand zum Hindernis (seitlich): </p>
+          <canvas class="canvas" id="side_distanceChart">
+          </canvas>
+        </div>
+ 
+
+        <!--
+        <div class="col">
+          <p> Länge der Parklücke: </p>
+          <canvas class="canvas" id="parking_space_lengthChart">
+          </canvas>
+        </div>
+        -->
       </div>
     </div>
 
@@ -76,60 +98,88 @@
             dataSocket.send("connection established");
         };
 
-        dataSocket.onmessage = function(evt) {
-            console.log(evt.data);
-            dataSocket.send("Message received!");
-            var msg = JSON.parse(evt.data);
-            console.log(msg)
-            speed.append(new Date().getTime(), parseFloat(msg.e_t.speed));
-            himmel.append(new Date().getTime(), parseFloat(msg.c_t.bearing));
-            abstand.append(new Date().getTime(), parseFloat(msg.e_t.distance));
-            speed.append(new Date().getTime(), parseFloat(msg.i_t.parking_space_length));
-        }
+        dataSocket.onerror = function(event) {
+            console.log("Websocket error: ", event);
+        };
 
-        // SpeedChart
-        var speedChart = new SmoothieChart({minValue: 0, maxValue: 300,
-                grid: {strokeStyle: "rgb(125,0,0)", fillStyle: "rgb(60,0,0)",
-                       lineWidth: 1, millisPerLine: 250, verticalSections:6}
-                });
-
-        // HimmelChart
-        var himmelChart = new SmoothieChart({minValue: 0, maxValue: 300,
-                grid: {strokeStyle: "rgb(125,0,0)", fillStyle: "rgb(60,0,0)",
-                       lineWidth: 1, millisPerLine: 250, verticalSections:6}
-                });
-
-        // SmoothieChart
-        var abstandChart = new SmoothieChart({minValue: 0, maxValue: 300,
-                grid: {strokeStyle: "rgb(125,0,0)", fillStyle: "rgb(60,0,0)",
-                       lineWidth: 1, millisPerLine: 250, verticalSections:6}
-                });
-
-        // SmoothieChart
-        var laengeChart = new SmoothieChart({minValue: 0, maxValue: 300,
-                grid: {strokeStyle: "rgb(125,0,0)", fillStyle: "rgb(60,0,0)",
-                       lineWidth: 1, millisPerLine: 250, verticalSections:6}
-                });
+        dataSocket.onclose = function(event) {
+            console.log("Websocket closed: ", event);
+        };
 
         //speed
         var speed = new TimeSeries();
-        sppedChart.addTimeSeries(speed);
+        //Himmelsrichtung
+        var bearing = new TimeSeries();
+        //Abstand zum Hindernis vorne
+        var front_distance = new TimeSeries();
+        //Abstand zum Hindernis hinten
+        var rear_distance = new TimeSeries();
+        //Abstand zum Hindernis seitlich
+        var side_distance = new TimeSeries();
+        // Parkluecke
+        var parking_space_length = new TimeSeries();
+
+        dataSocket.onmessage = function(evt) {
+            console.log(evt.data);
+            console.log(dataSocket.readyState);
+            // causes datasocket close/crash?????
+            //dataSocket.send("Message received!");
+            var msg = JSON.parse(evt.data);
+            speed.append(new Date().getTime(), parseFloat(msg.speed));
+            bearing.append(new Date().getTime(), parseFloat(msg.bearing));
+            front_distance.append(new Date().getTime(), parseFloat(msg.front_distance));
+            rear_distance.append(new Date().getTime(), parseFloat(msg.rear_distance));
+            side_distance.append(new Date().getTime(), parseFloat(msg.side_distance));
+            parking_space_length.append(new Date().getTime(), parseFloat(msg.parking_space_length));
+        };
+
+        var speedChart = new SmoothieChart({minValue: 0, maxValue: 100,
+                grid: {strokeStyle: "rgb(125,0,0)", fillStyle: "rgb(60,0,0)",
+                       lineWidth: 1, millisPerLine: 250, verticalSections:6}
+                });
+
+        var bearingChart = new SmoothieChart({minValue: 0, maxValue: 360,
+                grid: {strokeStyle: "rgb(125,0,0)", fillStyle: "rgb(60,0,0)",
+                       lineWidth: 1, millisPerLine: 250, verticalSections:6}
+                });
+
+        var front_distanceChart = new SmoothieChart({minValue: 10, maxValue: 80,
+                grid: {strokeStyle: "rgb(125,0,0)", fillStyle: "rgb(60,0,0)",
+                       lineWidth: 1, millisPerLine: 250, verticalSections:6}
+                });
+ 
+        var rear_distanceChart = new SmoothieChart({minValue: 10, maxValue: 80,
+                grid: {strokeStyle: "rgb(125,0,0)", fillStyle: "rgb(60,0,0)",
+                       lineWidth: 1, millisPerLine: 250, verticalSections:6}
+                });
+ 
+        var side_distanceChart = new SmoothieChart({minValue: 5, maxValue: 50,
+                grid: {strokeStyle: "rgb(125,0,0)", fillStyle: "rgb(60,0,0)",
+                       lineWidth: 1, millisPerLine: 250, verticalSections:6}
+                });
+
+        var parking_space_lengthChart = new SmoothieChart({minValue: 0, maxValue: 100,
+                grid: {strokeStyle: "rgb(125,0,0)", fillStyle: "rgb(60,0,0)",
+                       lineWidth: 1, millisPerLine: 250, verticalSections:6}
+                });
+
+        speedChart.addTimeSeries(speed);
         speedChart.streamTo(document.getElementById("speedChart"), 100);
 
-        //Himmelrichtung
-        var himmel = new TimeSeries();
-        himmelChart.addTimeSeries(himmel);
-        himmelChart.streamTo(document.getElementById("himmelsChart"), 100);
+        bearingChart.addTimeSeries(bearing);
+        bearingChart.streamTo(document.getElementById("bearingChart"), 100);
 
-        //Abstand zum Hindernis
-        var abstand = new TimeSeries();
-        abstandChart.addTimeSeries(abstand);
-        abstandChart.streamTo(document.getElementById("abstandChart"), 100);
+        front_distanceChart.addTimeSeries(front_distance);
+        front_distanceChart.streamTo(document.getElementById("front_distanceChart"), 100);
 
-        //speed
-        var laenge = new TimeSeries();
-        laengeChart.addTimeSeries(laenge);
-        laengeChart.streamTo(document.getElementById("laengeChart"), 100);
+        rear_distanceChart.addTimeSeries(rear_distance);
+        rear_distanceChart.streamTo(document.getElementById("rear_distanceChart"), 100);
+
+        side_distanceChart.addTimeSeries(side_distance);
+        side_distanceChart.streamTo(document.getElementById("side_distanceChart"), 100);
+
+        parking_space_lengthChart.addTimeSeries(parking_space_length);
+        parking_space_lengthChart.streamTo(document.getElementById("parking_space_lengthChart"), 100);
     </script>
   </body>
 </html>

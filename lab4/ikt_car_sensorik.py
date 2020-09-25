@@ -34,26 +34,53 @@ class Ultrasonic():
     # Diese Methode soll ein Datenbyte an den Ultraschallsensor senden um eine Messung zu starten
     def write(self,value):
         global bus
-        print("wrote starting value to ultrasonic sensor")
-        bus.write_byte_data(self.address, 0x00, value)
+        try:
+            bus.write_byte_data(self.address, 0x00, value)
+        except Exception as e:
+            #print("Ultrasonic write exception", e)
+            pass
 
     # Aufgabe 2
     #
     # Diese Methode soll den Lichtwert auslesen und zurueckgeben.
     def get_brightness(self):
         global bus
-        print("reading ultrasonic brightness")
-        return bus.read_byte_data(self.address, 0x01)
+        try:
+            return bus.read_byte_data(self.address, 0x01)
+        except Exception as e:
+            #print("Brightness read exception", e)
+            return -1
 
     # Aufgabe 2
     #
     # Diese Methode soll die Entfernung auslesen und zurueckgeben. 
     def get_distance(self):
         global bus
-        hi_b = bus.read_byte_data(self.address, 0x02)
-        lo_b = bus.read_byte_data(self.address, 0x03)
-        print("ultrasonic", hi_b, lo_b)
-        return int.from_bytes(bytes([hi_b, lo_b]), byteorder="big")
+        # measure in cm
+        self.write(0x51)
+        # measurement takes 65ms max
+        sleep(0.07)
+        readsucc = True
+        try:
+            hi_b = bus.read_byte_data(self.address, 0x02)
+            #print("ultrasonic hi read success", hi_b)
+        except Exception as e:
+            #print("Ultrasonic hi read exception", e)
+            #hi_b = 0
+            readsucc = False
+        try:
+            lo_b = bus.read_byte_data(self.address, 0x03)
+            #print("ultrasonic lo read success", lo_b)
+        except Exception as e:
+            pass
+            #print("Ultrasonic lo read exception", e)
+            #lo_b = 0
+            readsucc = False
+        #return int.from_bytes(bytes([hi_b, lo_b]), byteorder="big")
+        if readsucc:
+            return ((hi_b << 8) + lo_b)
+        else:
+            return -1
 
     def get_address(self):
         return self.address
@@ -84,13 +111,12 @@ class UltrasonicThread(threading.Thread):
     # Schreiben Sie die Messwerte in die lokalen Variablen
     def run(self):
         while not self.stopped:
-            # measure in cm
-            self.ultrasonic.write(0x51)
-            # measurement takes 65ms max
-            sleep(0.065)
-
-            distance = self.ultrasonic.get_distance()
-            brightness = self.ultrasonic.get_brightness()
+            dist = self.ultrasonic.get_distance()
+            if (dist >= 10):
+                self.distance = dist
+            bright = self.ultrasonic.get_brightness()
+            if (bright >= 0):
+                self.brightness = bright
             
     def stop(self):
         self.stopped = True
@@ -110,9 +136,26 @@ class Compass(object):
     # Diese Methode soll den Kompasswert auslesen und zurueckgeben. 
     def get_bearing(self):
         global bus
-        hi_b = bus.read_byte_data(self.address, 2)
-        lo_b = bus.read_byte_data(self.address, 3)
-        return int.from_bytes(bytes([hi_b, lo_b]), byteorder="big") / 10
+        """
+        try:
+            hi_b = bus.read_byte_data(self.address, 2)
+        except Exception as e:
+            print("Compass hi read exception", e)
+            hi_b = 0
+        try:
+            lo_b = bus.read_byte_data(self.address, 3)
+        except Exception as e:
+            print("Compass lo read exception", e)
+            lo_b = 0
+        #return int.from_bytes(bytes([hi_b, lo_b]), byteorder="big") / 10
+        return ((hi_b << 8) + lo_b)
+        """
+        try:
+            comp_measure = bus.read_byte_data(self.address, 0x01)
+            return comp_measure * 360/255
+        except Exception as e:
+            #print("Compass read exception", e)
+            return -1
 
 class CompassThread(threading.Thread):
     ''' Thread-class for holding compass data '''
@@ -136,7 +179,9 @@ class CompassThread(threading.Thread):
     # Diese Methode soll den Kompasswert aktuell halten.
     def run(self):
         while not self.stopped:
-            bearing = self.compass.get_bearing()
+            bear = self.compass.get_bearing()
+            if (bear > 0):
+                self.bearing = bear
 
     def stop(self):
         self.stopped = True
@@ -151,29 +196,57 @@ class Infrared(object):
     def __init__(self,address):
         global bus
         self.address = address
-        bus.write_byte(address, 0x00)
+        try:
+            #bus.write_byte_data(address, 0x00, 0x00)
+            bus.write_byte(address, 0x00)
+        except Exception as e:
+            #print("Infrared write exception", e)
+            pass
         
     # Aufgabe 2 
     #
     # In dieser Methode soll der gemessene Spannungswert des Infrarotsensors ausgelesen werden.
     def get_voltage(self):
         global bus
-        return bus.read_byte_data(self.address, 0x00)
+        # 0x00 to 0xFF
+        readsucc = True
+        try:
+            readval = bus.read_byte_data(self.address, 0x00)
+        except Exception as e:
+            #print("Infrared read exception", e)
+            readsucc = False
+            #readval = 0
+        # 0 to 5 (V)
+        if readsucc:
+            return readval * 5 / 255
+        else:
+            return -1
 
     # Aufgabe 3
     #
     # Der Spannungswert soll in einen Distanzwert umgerechnet werden.
     def get_distance(self):
-        # V = 1 / ( 1/dist + 0.42)   -->   dist = 1/(1/V - 0.42)
+        # L = 1 / (dist + 0.42)   -->   dist = (1/L - 0.42)
+        # V = m * L + b   -->   L = (V - b)/m
+        # linear approximation, okay for dist > 10
+        # 0.02 -> 0.62
+        x0 = 0.02
+        y0 = 0.62
+        # 0.08 -> 2.12
+        x1 = 0.08
+        y1 = 2.12
+        m = (y1 - y0) / (x1 - x0)
+        b = y0 - x0 * m
         V = self.get_voltage()
-        return (1 / (1/V - 0.42))
+        L = (V - b) / m
+        return (1/L - 0.42)
 
 
 class InfraredThread(threading.Thread):
     ''' Thread-class for holding Infrared data '''
 
     # distance to an obstacle in cm
-    distance = 0
+    distance = 20
 
     # length of parking space in cm
     parking_space_length = 0
@@ -194,32 +267,39 @@ class InfraredThread(threading.Thread):
     def run(self):
         while not self.stopped:
             self.read_infrared_value()
-            self.calculate_parking_space_length()
+            #self.calculate_parking_space_length()
 
     # Aufgabe 4
     #
     # Diese Methode soll den Infrarotwert aktuell halten
     def read_infrared_value(self):  
-        distance = self.infrared.get_distance()
+        volt = self.infrared.get_voltage()
+        if (volt >= 0 or True):
+            self.distance = self.infrared.get_distance()
 
     # Aufgabe 5
     #
     # Hier soll die Berechnung der Laenge der Parkluecke definiert werden
     def calculate_parking_space_length(self):
         THR_DISTANCE = 20 #cm
+
         # obstacle on the right, IR distance < THR_DISTANCE
         # (drive forward) wait until IR distance >= THR_DISTANCE
-        while (distance < THR_DISTANCE):
+        while (self.distance < THR_DISTANCE):
             sleep(1 / POLLING_FREQ)
+
         # obstacle ended, save current position
         gap_start_absolute = self.encoder.get_travelled_dist()
+
         # (drive forward) wait until IR distance < THR_DISTANCE
-        while (distance > THR_DISTANCE):
+        while (self.distance > THR_DISTANCE):
             sleep(1 / POLLING_FREQ)
+
         # end of gap reached
         gap_end_absolute = self.encoder.get_travelled_dist()
+
         # subtract gap start position from end position
-        parking_space_length = gap_end_absolute - gap_start_absolute
+        self.parking_space_length = gap_end_absolute - gap_start_absolute
 
     def stop(self):
         self.stopped = True
@@ -239,7 +319,7 @@ class Encoder(object):
     STEP_LENGTH = math.pi * D / 16 # in cm
 
     # number of encoder steps
-    count = 0
+    counter = 0
 
     def __init__(self, pin):
         self.pin = pin
@@ -251,14 +331,14 @@ class Encoder(object):
     # Jeder Flankenwechsel muss zur Berechnung der Entfernung gezaehlt werden. 
     # Definieren Sie alle dazu noetigen Methoden.
 
-    def count(channel):
-        count += 1
+    def count(self, channel):
+        self.counter += 1
 
     # Aufgabe 2
     # 
     # Diese Methode soll die gesamte zurueckgelegte Distanz zurueckgeben.
     def get_travelled_dist(self):
-        return count * STEP_LENGTH
+        return self.counter * self.STEP_LENGTH
 
 class EncoderThread(threading.Thread):
     ''' Thread-class for holding speed and distance data of all encoders'''
@@ -285,16 +365,17 @@ class EncoderThread(threading.Thread):
 
     def run(self):
         while not self.stopped:
-            get_values()
+            self.get_values()
 
     # Aufgabe 4
     #
     # Diese Methode soll die aktuelle Geschwindigkeit sowie die zurueckgelegte Distanz aktuell halten.
     def get_values(self):
         global POLLING_FREQ
+        sleep(10 * 1/POLLING_FREQ)
         distance_new = self.encoder.get_travelled_dist()
-        speed = (distance_new - distance) * POLLING_FREQ
-        distance = distance_new
+        self.speed = (distance_new - self.distance) * POLLING_FREQ / 10
+        self.distance = distance_new
 
 
     def stop(self):
@@ -324,7 +405,7 @@ if __name__ == "__main__":
     infrared_i2c_address = 0x4f
 
     # Aufgabe 6
-    #
+    # 
     # Hier sollen saemtlichen Messwerte periodisch auf der Konsole ausgegeben werden.
 
     enc = Encoder(encoder_pin)
@@ -337,13 +418,11 @@ if __name__ == "__main__":
     e_t = EncoderThread(enc)
 
     while True:
-        """
-        print("encoder distance", e_t.distance,
-              "encoder speed", e_t.speed,
-              "compass bearing", c_t.bearing,
-              "distance (front, back, side)", "(", u_t1.distance, u_t2.distance, i_t.distance, ")",
-              "front brightness", u_t1.brightness,
-              "parking space length", i_t.parking_space_length,
+        print("encoder distance", e_t.distance, "\n",
+              "encoder speed", e_t.speed, "\n",
+              "compass bearing", c_t.bearing, "\n",
+              "distance (front, back, side)", "(", u_t1.distance, u_t2.distance, i_t.distance, ")", "\n",
+              "front brightness", u_t1.brightness, "\n",
+              "parking space length", i_t.parking_space_length, "\n",
               )
-        """
-        sleep(1 / POLLING_FREQ)
+        sleep(0.1)

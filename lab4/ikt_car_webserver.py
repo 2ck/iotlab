@@ -58,10 +58,12 @@ class DataThread(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
 
+        self.stopped = False
+
         address_ultrasonic_front = 0x70
         address_ultrasonic_back = 0x71 
         address_compass = 0x60
-        address_infrared = 0x4
+        address_infrared = 0x4F
         encoder_pin = 23
         self.set_sensorik(address_ultrasonic_front, address_ultrasonic_back, address_compass, address_infrared, encoder_pin)
     
@@ -83,17 +85,20 @@ class DataThread(threading.Thread):
     def run(self):
         while not self.stopped:
             json_message = {
-                "us brightness":self.u_t1.brightness,
-                "front distance":self.u_t1.distance,
-                "rear distance":self.u_t2.distance,
-                "compass":self.c_t.bearing,
-                "side distance":self.i_t.distance,
-                "parking space length":self.i_t.parking_space_length,
-                "driven distance":self.e_t.distance,
+                "brightness":self.u_t1.brightness,
+                "front_distance":self.u_t1.distance,
+                "rear_distance":self.u_t2.distance,
+                "bearing":self.c_t.bearing,
+                "side_distance":self.i_t.distance,
+                "parking_space_length":self.i_t.parking_space_length,
+                "driven_distance":self.e_t.distance,
                 "speed":self.e_t.speed
                 }
             for c in clients:
-                c.write_message(json_message)
+                try:
+                    c.write_message(json_message)
+                except:
+                    print("write exception")
 
 
     def stop(self):
@@ -131,13 +136,18 @@ if __name__ == "__main__":
     httpServer = tornado.httpserver.HTTPServer(app)
     httpServer.listen(options.port)
     print("Listening on port:", options.port)
-    tornado.ioloop.IOLoop.instance().start()
+
     # Aufgabe 3
     #
     # Erstellen und starten Sie hier eine Instanz des DataThread und starten Sie den Webserver .
+    datathread = DataThread()
+    datathread.start()
 
 
     # Einparken
     #
     # Erstellen und starten Sie hier eine Instanz des DrivingThread, um das Einparken zu ermoeglichen.
 
+    # start io loop and join threads
+    tornado.ioloop.IOLoop.instance().start()
+    #datathread.join()
