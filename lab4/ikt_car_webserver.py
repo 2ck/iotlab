@@ -13,6 +13,10 @@ import servo_ctrl
 from math import acos, sqrt, degrees
 
 
+PARKING_SPEED = 5
+currently_parking = False
+do_parking = False
+stop_parking = False
 
 # Aufgabe 4
 #
@@ -38,11 +42,19 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         clients.append(self)
 
     def on_message(self, message):
+        global do_parking, stop_parking
         print("message received:", message)
-        json_message = {}
-        json_message["response"] = message
-        json_message = json.dumps(json_message)
-        self.write_message(json_message)
+        if (message == "park"):
+            print("Start parking process")
+            do_parking = True
+        elif (message == "stoppark"):
+            print("Stop parking process")
+            stop_parking = True
+        else:
+            json_message = {}
+            json_message["response"] = message
+            json_message = json.dumps(json_message)
+            self.write_message(json_message)
 
     def on_close(self):
         print("connection closed")
@@ -83,7 +95,14 @@ class DataThread(threading.Thread):
     #
     # Hier muessen die Sensorwerte ausgelesen und an alle Clients des Webservers verschickt werden.
     def run(self):
+        global currently_parking
+        disthelper = 0
         while not self.stopped:
+            parkdist = -1
+            if currently_parking:
+                parkdist = self.e_t.distance - disthelper
+            else:
+                disthelper = self.e_t.distance
             json_message = {
                 "brightness":self.u_t1.brightness,
                 "front_distance":self.u_t1.distance,
@@ -92,7 +111,8 @@ class DataThread(threading.Thread):
                 "side_distance":self.i_t.distance,
                 "parking_space_length":self.i_t.parking_space_length,
                 "driven_distance":self.e_t.distance,
-                "speed":self.e_t.speed
+                "speed":self.e_t.speed,
+                "parkdist":parkdist
                 }
             for c in clients:
                 try:
@@ -110,18 +130,136 @@ class DrivingThread(threading.Thread):
     # Einparken
     #
     # Hier muss der Thread initialisiert werden.
-    def __init__(self):
-        return 0
-        
+    def __init__(self, datathread):
+        threading.Thread.__init__(self)
+
+        self.stopped = False
+
+        self.datathread = datathread
+
+        self.motor = servo_ctrl.Motor()
+        self.steering = servo_ctrl.Steering()
+
+        # Breite des Autos
+        self.w = 15
+        # Abstand zum Nachbarauto
+        self.p = 10
+        # Abstand der Achsen
+        f = 30
+        # Abstand von Hinterachse zu Heck
+        b = 5
+        # Wendekreis
+        self.r = self.p + 3 * self.w / 2
+        self.l = sqrt(2 * self.r * self.w + f ** 2) + b
+        print("min length", self.l)
+
+    def check_stop(self):
+        global stop_parking
+        THR_FRONTBACK = 20
+        # check for obstacle
+        if self.datathread.u_t1.distance < THR_FRONTBACK or self.datathread.u_t2.distance < THR_FRONTBACK:
+            stop_parking = True
+        if stop_parking:
+            self.motor.stop()
+            self.steering.stop()
+            stop_parking = False
+
+            return True
+        return False
+
+    def parking_process(self):
+        global PARKING_SPEED, do_parking, currently_parking
+
+        currently_parking = True
+
+        # radencoder broken, zeit statt distanz benutzen
+        DO_USE_TIME = True
+        PARKING_SLEEP_TIME = 5
+
+        starttime = int(time())
+        start_angle = self.datathread.c_t.bearing
+        start_pos = self.datathread.e_t.distance
+
+        do_parking = False
+        if self.check_stop():
+            return
+        alpha = acos(1 - (self.p + self.w) / (2 * self.r))
+        alpha = degrees(alpha)
+        circlepath = 2 * math.pi * self.r * alpha/360
+        # rueckwaerts fahren bis ende der luecke
+        # 
+        self.motor.stop()
+
+        # ----- parken startet -----
+        # steering alpha, weiter rueckwaerts fahren
+        self.steering.set_angle(alpha)
+        self.motor.set_speed(-PARKING_SPEED)
+        # bis wir 2 pi r * alpha/360 gefahren sind
+        circlepath = 0.5 # just for testing
+        if DO_USE_TIME:
+            for i in range(1, 101):
+                sleep(PARKING_SLEEP_TIME / 100)
+                if self.check_stop():
+                    return
+        else:
+            while (self.datathread.e_t.distance - start_pos < circlepath):
+                if self.check_stop():
+                    return
+                #print(self.datathread.e_t.distance, circlepath)
+        mid_pos = self.datathread.e_t.distance
+        # steering -alpha, weiter rueckwaerts fahren
+        self.steering.set_angle(-alpha)
+        # bis wir noch mal 2 pi r * alpha/360 gefahren sind
+        if DO_USE_TIME:
+            for i in range(1, 101):
+                sleep(PARKING_SLEEP_TIME / 100)
+                if self.check_stop():
+                    return
+        else:
+            while (self.datathread.e_t.distance - mid_pos < circlepath):
+                if self.check_stop():
+                    return
+        # ----- parken fertig -----
+
+        self.motor.stop()
+        self.steering.stop()
+        self.datathread.i_t.parked()
+
+        # how long did parking take
+        endtime = int(time())
+        json_message = {"time":(endtime - starttime)}
+        for c in clients:
+            try:
+                c.write_message(json_message)
+                print("wrote park time message")
+            except:
+                print("write exception")
+        print("Parking took", endtime - starttime, "seconds")
+
+        # check if parallel
+        end_angle = self.datathread.c_t.bearing
+        ANGLE_DIFF_THR = 10
+        if ((abs(end_angle - start_angle) < ANGLE_DIFF_THR) or (abs(abs(end_angle - start_angle) - 360) < ANGLE_DIFF_THR)):
+            print("(Nearly) parallel:", start_angle, end_angle)
+        else:
+            print("Not parallel", start_angle, end_angle)
+
     # Einparken
     #
     # Definieren Sie einen Thread, der auf die ueber den Webserver erhaltenen Befehle reagiert und den Einparkprozess durchfuehrt
     def run(self):
+        global do_parking, currently_parking
         while not self.stopped:
-            continue
+            #if (self.datathread.i_t.parking_space_length >= self.l and do_parking):
+            if (do_parking):
+                self.parking_process()
+                currently_parking = False
 
     def stop(self):
         self.stopped = True
+        for i in range(6, -1, -1):
+            self.motor.set_speed(i)
+            sleep(0.5)
         
 
 if __name__ == "__main__":
@@ -148,6 +286,9 @@ if __name__ == "__main__":
     #
     # Erstellen und starten Sie hier eine Instanz des DrivingThread, um das Einparken zu ermoeglichen.
 
+    drivingthread = DrivingThread(datathread)
+    drivingthread.start()
     # start io loop and join threads
     tornado.ioloop.IOLoop.instance().start()
-    #datathread.join()
+    datathread.join()
+    drivingthread.join()

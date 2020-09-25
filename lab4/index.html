@@ -38,6 +38,17 @@
     <!--Für jeden Datensatz muss eine Zeichenfläche 'canvas' definiert werden-->
     <div class="container">
       <div class="row">
+        <div class="col">
+          <p> Parkzeit(s): </p>
+          <p id = "parktime"></p>
+        </div>
+        <div class="col">
+          <p> Parkdistanz(cm): </p>
+          <p id = "parkdist"></p>
+        </div>
+      </div>
+
+      <div class="row">
 
         <div class="col">
           <p> Abstand zum Hindernis (vorne): </p>
@@ -74,21 +85,19 @@
         </div>
  
 
-        <!--
         <div class="col">
           <p> Länge der Parklücke: </p>
           <canvas class="canvas" id="parking_space_lengthChart">
           </canvas>
         </div>
-        -->
       </div>
     </div>
 
      <!--Einparken -->
     <!--Es müssen Knöpfe zum Starten und Stoppen des Parkvorgangs definiert werden-->
     <div class="container">
-      <button class="btn btn-primary btn-success"> Start Parking </button>
-      <button class="btn btn-primary btn-warning"> Stop Parking process </button>
+      <button class="btn btn-primary btn-success" id="startbtn" onclick="start_parking()"> Start Parking </button>
+      <button class="btn btn-primary btn-warning" id="stopbtn" onclick="stop_parking()"> Stop Parking process </button>
     </div>
 
     <script type="text/javascript">
@@ -106,6 +115,14 @@
             console.log("Websocket closed: ", event);
         };
 
+        start_parking = function() {
+            dataSocket.send("park")
+        };
+
+        stop_parking = function() {
+            dataSocket.send("stoppark")
+        };
+
         //speed
         var speed = new TimeSeries();
         //Himmelsrichtung
@@ -121,16 +138,29 @@
 
         dataSocket.onmessage = function(evt) {
             console.log(evt.data);
-            console.log(dataSocket.readyState);
             // causes datasocket close/crash?????
             //dataSocket.send("Message received!");
             var msg = JSON.parse(evt.data);
-            speed.append(new Date().getTime(), parseFloat(msg.speed));
-            bearing.append(new Date().getTime(), parseFloat(msg.bearing));
-            front_distance.append(new Date().getTime(), parseFloat(msg.front_distance));
-            rear_distance.append(new Date().getTime(), parseFloat(msg.rear_distance));
-            side_distance.append(new Date().getTime(), parseFloat(msg.side_distance));
-            parking_space_length.append(new Date().getTime(), parseFloat(msg.parking_space_length));
+            if ("time" in msg) {
+                console.log("time received");
+                document.getElementById("parktime").innerHTML = msg.time;
+            }
+            else {
+                speed.append(new Date().getTime(), parseFloat(msg.speed));
+                bearing.append(new Date().getTime(), parseFloat(msg.bearing));
+                front_distance.append(new Date().getTime(), parseFloat(msg.front_distance));
+                rear_distance.append(new Date().getTime(), parseFloat(msg.rear_distance));
+                side_distance.append(new Date().getTime(), parseFloat(msg.side_distance));
+                parking_space_length.append(new Date().getTime(), parseFloat(msg.parking_space_length));
+
+                if (parseInt(msg.parkdist) >= 0) {
+                    document.getElementById("parkdist").innerHTML = msg.parkdist;
+                }
+                else {
+                    //document.getElementById("parkdist").innerHTML = 0;
+                }
+
+            }
         };
 
         var speedChart = new SmoothieChart({minValue: 0, maxValue: 100,

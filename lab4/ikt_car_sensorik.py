@@ -239,14 +239,18 @@ class Infrared(object):
         b = y0 - x0 * m
         V = self.get_voltage()
         L = (V - b) / m
-        return (1/L - 0.42)
+        dist = 1/L - 0.42
+        if (dist > 10 and dist < 80):
+            return (1/L - 0.42)
+        else:
+            return -1
 
 
 class InfraredThread(threading.Thread):
     ''' Thread-class for holding Infrared data '''
 
     # distance to an obstacle in cm
-    distance = 20
+    distance = 0
 
     # length of parking space in cm
     parking_space_length = 0
@@ -267,7 +271,7 @@ class InfraredThread(threading.Thread):
     def run(self):
         while not self.stopped:
             self.read_infrared_value()
-            #self.calculate_parking_space_length()
+            self.calculate_parking_space_length()
 
     # Aufgabe 4
     #
@@ -275,7 +279,9 @@ class InfraredThread(threading.Thread):
     def read_infrared_value(self):  
         volt = self.infrared.get_voltage()
         if (volt >= 0 or True):
-            self.distance = self.infrared.get_distance()
+            distance = self.infrared.get_distance()
+            if distance > 0:
+                self.distance = distance
 
     # Aufgabe 5
     #
@@ -286,20 +292,32 @@ class InfraredThread(threading.Thread):
         # obstacle on the right, IR distance < THR_DISTANCE
         # (drive forward) wait until IR distance >= THR_DISTANCE
         while (self.distance < THR_DISTANCE):
+            self.read_infrared_value()
+            #print("obstacle on the right")
             sleep(1 / POLLING_FREQ)
 
         # obstacle ended, save current position
         gap_start_absolute = self.encoder.get_travelled_dist()
+        print("gap start", gap_start_absolute)
 
         # (drive forward) wait until IR distance < THR_DISTANCE
         while (self.distance > THR_DISTANCE):
+            #print("no obstacle")
+            self.read_infrared_value()
             sleep(1 / POLLING_FREQ)
 
         # end of gap reached
         gap_end_absolute = self.encoder.get_travelled_dist()
+        print("gap end", gap_end_absolute)
 
         # subtract gap start position from end position
-        self.parking_space_length = gap_end_absolute - gap_start_absolute
+        p_s_l = gap_end_absolute - gap_start_absolute
+        if (p_s_l > 0):
+            self.parking_space_length = p_s_l
+            print("Parking space found:", self.parking_space_length)
+
+    def parked(self):
+        self.parking_space_length = 0
 
     def stop(self):
         self.stopped = True
@@ -313,7 +331,6 @@ class Encoder(object):
 
     # Aufgabe 2
     #
-    # TODO
     D = 7
     # Wieviel cm betraegt ein einzelner Encoder-Schritt?
     STEP_LENGTH = math.pi * D / 16 # in cm
@@ -332,6 +349,7 @@ class Encoder(object):
     # Definieren Sie alle dazu noetigen Methoden.
 
     def count(self, channel):
+        print("step counter", self.counter)
         self.counter += 1
 
     # Aufgabe 2
@@ -352,7 +370,6 @@ class EncoderThread(threading.Thread):
     # Aufgabe 4
     #
     # Hier muss der Thread initialisiert werden.
-    # TODO do we really want to call init with the encoder class already created?
     def __init__(self, encoder):
         threading.Thread.__init__(self)
 
@@ -372,9 +389,9 @@ class EncoderThread(threading.Thread):
     # Diese Methode soll die aktuelle Geschwindigkeit sowie die zurueckgelegte Distanz aktuell halten.
     def get_values(self):
         global POLLING_FREQ
-        sleep(10 * 1/POLLING_FREQ)
+        sleep(1/POLLING_FREQ)
         distance_new = self.encoder.get_travelled_dist()
-        self.speed = (distance_new - self.distance) * POLLING_FREQ / 10
+        self.speed = (distance_new - self.distance) * POLLING_FREQ
         self.distance = distance_new
 
 
@@ -418,6 +435,7 @@ if __name__ == "__main__":
     e_t = EncoderThread(enc)
 
     while True:
+        """
         print("encoder distance", e_t.distance, "\n",
               "encoder speed", e_t.speed, "\n",
               "compass bearing", c_t.bearing, "\n",
@@ -425,4 +443,5 @@ if __name__ == "__main__":
               "front brightness", u_t1.brightness, "\n",
               "parking space length", i_t.parking_space_length, "\n",
               )
+        """
         sleep(0.1)
